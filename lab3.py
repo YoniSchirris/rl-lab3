@@ -235,6 +235,7 @@ def run_episodes(train, model, memory, env, num_episodes, batch_size, discount_f
         if i % 5 == 0:
             episode_duration = 0
             s = env.reset()
+            q_values = []     # used to experiment soft divergence
             while True:
                 a = select_action(model, s, EVAL_EPS) # epsilon-greedy select action
                 s_next, r, done, _ = env.step(a)  # execute action a_t in emulator
@@ -330,12 +331,11 @@ _seed = 0
 results={}
 q_results={}
 
-for replay in [True]:
+for replay in [True, False]:
 
     hyperparams['memory'] = ReplayMemory(10000, useTrick=replay)
     
-    # for steps in [1, 50, 100, 200, 500]:
-    for steps in [1]:
+    for steps in [1, 50, 100, 200, 500]:
     
         results['episode'] = []
         q_results['episode'] = []
@@ -362,6 +362,9 @@ for replay in [True]:
             
 with open('results_{}.pkl'.format(int(time.time())), 'wb') as f:
     pickle.dump(results, f)
+
+with open('qresults_{}.pkl'.format(int(time.time())), 'wb') as f:
+    pickle.dump(q_results, f)
     
 results_df = pd.DataFrame(results)
 q_results_df = pd.DataFrame(q_results)
