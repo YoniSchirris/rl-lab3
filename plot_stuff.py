@@ -13,7 +13,7 @@ def run_fig_1():
     results = pickle.load(open('results_for_figs.pkl', 'rb'))
     test_df = pd.DataFrame(results)
     new_df = test_df[['episode', 'replay_steps1_repeats10','no-replay_steps1_repeats10' ]].copy()
-    new_df.columns= ['episode', 'DQN + Experience Replay, no target network', 'DQN without experience replay, no target']
+    new_df.columns= ['episode', 'DQN + Experience Replay, no Target Network', 'DQN without Experience Replay, no Target Network']
     plt.figure()
     lineplot = sns.lineplot(x='episode', y='value', hue='variable', 
                 data=pd.melt(new_df, ['episode']), ci=95)
@@ -28,7 +28,7 @@ def run_fig_2():
     results = pickle.load(open('results_for_figs.pkl', 'rb'))
     test_df = pd.DataFrame(results)
     new_df = test_df[['episode', 'replay_steps1_repeats10','replay_steps50_repeats10', 'replay_steps200_repeats10' ]].copy()
-    new_df.columns= ['episode', 'DQN + Experience Replay, no target network', 'DQN + experience replay, Target Network 50', 'DQN + experience replay, Target Network 200']
+    new_df.columns= ['episode', 'DQN + Experience Replay, no Target Network', 'DQN + Experience Replay, Target Network 50', 'DQN + Experience Replay, Target Network 200']
     plt.figure()
     lineplot = sns.lineplot(x='episode', y='value', hue='variable', 
                 data=pd.melt(new_df, ['episode']), ci=95)
@@ -43,7 +43,7 @@ def run_fig_3():
     results = pickle.load(open('results_for_figs.pkl', 'rb'))
     test_df = pd.DataFrame(results)
     new_df = test_df[['episode', 'no-replay_steps1_repeats10','no-replay_steps50_repeats10', 'no-replay_steps200_repeats10' ]].copy()
-    new_df.columns= ['episode', 'DQN without Experience Replay, no target network', 'DQN without experience replay, Target Network 50', 'DQN without experience replay, Target Network 200']
+    new_df.columns= ['episode', 'DQN without Experience Replay, no Target Network', 'DQN without Experience Replay, Target Network 50', 'DQN without Experience Replay, Target Network 200']
     plt.figure()
     lineplot = sns.lineplot(x='episode', y='value', hue='variable', 
                 data=pd.melt(new_df, ['episode']), ci=95)
