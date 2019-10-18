@@ -1,4 +1,4 @@
-#RL Lab3
+# RL Lab3
 
 Install the required environment by typing the following commands in your terminal (ensure you have `conda` installed)
 
