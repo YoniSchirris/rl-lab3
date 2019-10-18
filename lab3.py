@@ -1,10 +1,3 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[1]:
-
-
-# get_ipython().run_line_magic('matplotlib', 'inline')
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -12,15 +5,14 @@ import sys
 import copy
 import seaborn as sns; sns.set()
 import pandas as pd
-
 import torch
 from torch import nn
 import torch.nn.functional as F
 from torch import optim
 from tqdm import tqdm as _tqdm
-
 import random
 import time
+import pickle
 from collections import defaultdict
 
 def tqdm(*args, **kwargs):
@@ -30,33 +22,22 @@ EPS = float(np.finfo(np.float32).eps)
 
 assert sys.version_info[:3] >= (3, 6, 0), "Make sure you have Python 3.6 installed!"
 
-
-# In[2]:
-
-
 import gym
 env = gym.envs.make("CartPole-v0")
 
-
-# In[3]:
-
-
-# import time
-# # The nice thing about the CARTPOLE is that it has very nice rendering functionality (if you are on a local environment). Let's have a look at an episode
-# obs = env.reset()
-# env.render()
-# done = False
-# while not done:
-#     obs, reward, done, _ = env.step(env.action_space.sample())
-#     env.render()
-#     time.sleep(0.05)
-# env.close()  # Close the environment or you will have a lot of render screens soon
-
-
-# In[4]:
-
-
 class QNetwork(nn.Module):
+    """
+    The Neural Network for the Q-Function.
+    
+    IN during initialization: 
+    Number of states, number of actions, (number of hidden layers, optional)
+
+    IN for a run:
+    Vector describing the state, should be of length(number of states) given during initialization
+
+    OUT:
+    Value for each possible action
+    """
     
     def __init__(self, num_s, num_a, num_hidden=128):
         nn.Module.__init__(self)
@@ -68,9 +49,6 @@ class QNetwork(nn.Module):
         x = F.relu(self.l1(x))
         x = self.l2(x)
         return x
-
-
-# In[5]:
 
 
 # Let's instantiate and test if it works
@@ -86,15 +64,12 @@ test_model = nn.Sequential(
 
 x = torch.rand(10, 4)
 
-# If you do not need backpropagation, wrap the computation in the torch.no_grad() context
-# This saves time and memory, and PyTorch complaints when converting to numpy
-# with torch.no_grad():
-#     assert np.allclose(model(x).numpy(), test_model(x).numpy())
-
-# In[6]:
-
-
 class ReplayMemory:
+    """
+    Defines whether or not experience replay is used, tracks memory, and implements sampling function
+
+    IN during initialization: max capacity of memory, (useTrick stating whether or not to use experience replay, optional)
+    """
     
     def __init__(self, capacity, useTrick=True):
         self.capacity = capacity
@@ -103,74 +78,49 @@ class ReplayMemory:
         self.useTrick = useTrick
 
     def push(self, transition):
-        # YOUR CODE HERE
+        # tracks memory
         if len(self.memory) >= self.capacity:
             # if memory is full we remove the last value and add the new value at beginning
-            # use a deque next time
             self.memory.insert(0, transition)
             self.memory = self.memory[:-1]
         else:
             self.memory.insert(0, transition)
 
     def sample(self, batch_size):
-        
+        # samples from memory
         if self.useTrick:
-            # random batch
+            # random batch from entire memory, reduces i.i.d.
             return random.sample(self.memory, batch_size)
         else:
-            # latest batch_size memories
+            # latest batch_size memories, very correlated
             return self.memory[-batch_size:]
 
     def __len__(self):
         return len(self.memory)
-    
-memory = ReplayMemory(2)
-memory.push(2)
-memory.push(3)
-memory.push(4)
-assert memory.memory[0] == 4
-assert memory.memory[1] == 3
-
-
-# In[7]:
-
 
 def get_epsilon(it):
+    # calculate epsilon for number of iteration
+    # starts at 1, ends at 0.05, anneals over 1000 steps
     return max(1 - 0.00095*it, 0.05)
 
-
-# In[8]:
-
-
 def select_action(model, state, epsilon):
-    # YOUR CODE HERE
+    # Select action given the model, the state, epsilon, and the output from the Q-function
     _rand = random.random()
     state = torch.from_numpy(state).float()
     if _rand < epsilon:
-        
-        #TODO this is now hardcoded to return either 0 or 1, but might be different for different envs.
-        
-        # random move left (0) or right (1)
+        # take random action with epsilon probability
         return torch.randint(2, (1,)).item()
     else:
         with torch.no_grad():
+            # take best action with 1-epsilon probability, actions decided by the Q-function (neural network)
             return torch.argmax(model(state)).item()
-
-
-# In[9]:
-
 
 s = env.reset()
 a = select_action(model, s, 0.05)
 assert not torch.is_tensor(a)
-print (a)
-
-
-# In[10]:
-
 
 def compute_q_val(model, state, action):
-    # YOUR CODE HERE
+    # computes q-values
     # https://stackoverflow.com/questions/50999977/what-does-the-gather-function-do-in-pytorch-in-layman-terms
     # model(state) contains estimated q values from the model
     # action contains the action chosen by the model at that point
@@ -178,19 +128,23 @@ def compute_q_val(model, state, action):
     
     
 class targetComputer():
-    def __init__(self, target_network_steps=0):
+    """
+    Computes the target to compute the loss, also keeps track of the fixed target network
+
+    IN during initialization: 
+    target_network_steps: 1 being no fixed network, anything >1 meaning keeping the target network fixed for so many steps
+    """
+    def __init__(self, target_network_steps=1):
         self.UPDATE_STEPS = target_network_steps
         self.target_network_steps = self.UPDATE_STEPS
         
     def compute_target(self, model, reward, next_state, done, discount_factor):
         # done is a boolean (vector) that indicates if next_state is terminal (episode is done)
-        # YOUR CODE HERE
 
-        # only update self.model to given model is target_network_steps = 0
+        # only update self.model to given model if target_network_steps = 0
         if not hasattr(self, 'model'):
             self.model = copy.deepcopy(model)
         elif self.target_network_steps == 0:
-            
             self.model = model
             self.target_network_steps = self.UPDATE_STEPS
         
@@ -211,11 +165,10 @@ def train(model, memory, optimizer, batch_size, discount_factor, TargetComputer,
     
     # don't learn without some decent experience
     if len(memory) < batch_size:
-        return None
+        return None, 0
 
     # random transition batch is taken from experience replay memory
     transitions = memory.sample(batch_size)
-    
     
     # transition is a list of 4-tuples, instead we want 4 vectors (as torch.Tensor's)
     state, action, reward, next_state, done = zip(*transitions)
@@ -242,80 +195,67 @@ def train(model, memory, optimizer, batch_size, discount_factor, TargetComputer,
         loss.backward()
         optimizer.step()
     
-    return loss.item()  # Returns a Python scalar, and releases history (similar to .detach())
-
-
-# In[11]:
+    return loss.item(), q_val.max().item()  # Returns a Python scalar, and releases history (similar to .detach())
 
 
 def run_episodes(train, model, memory, env, num_episodes, batch_size, discount_factor, learn_rate, TargetComputer):
     
     optimizer = optim.Adam(model.parameters(), learn_rate)
 
-    EVAL_EPS = 0.05
+    EVAL_EPS = 0.05 #epsilon during evaluation
     
     global_steps = 0  # Count the steps (do not reset at episode start, to compute epsilon)
-    episode_durations = []  #
+    episode_durations = [] 
+    q_values = []     # used to experiment soft divergence
+    max_q_values = [] # used to experiment soft divergence
     losses = []
     
     
-#     for i in tqdm(range(num_episodes)): <-- this gets a bit annoying when doing more runs
     for i in range(num_episodes):
-        # YOUR CODE HERE
         # following algo from here: https://drive.google.com/file/d/0BxXI_RttTZAhVUhpbDhiSUFFNjg/view
-        
         episode_duration = 0
         s = env.reset()
         while True:
-            # a = select_action(model, s, -10); # print('Careful: running with all random action selection') # epsilon-greedy select action
             a = select_action(model, s, get_epsilon(global_steps)) # epsilon-greedy select action
             s_next, r, done, _ = env.step(a)  # execute action a_t in emulator
             episode_duration += 1
-                
-            memory.push((s, a, r, s_next, done))  # store transition in D
+            memory.push((s, a, r, s_next, done))  # store transition in memory
             global_steps += 1
             s = s_next
             if done:
                 break
 
             # this is actually training as I do not pass it "train=False"
-            loss = train(model, memory, optimizer, batch_size, discount_factor, TargetComputer)
+            loss, q_val = train(model, memory, optimizer, batch_size, discount_factor, TargetComputer)
 
-            # only tracking losses from the evaluation
+            # only tracking losses from the evaluation now
             # losses.append(loss)
 
         # add  evaluation every 5th run with same epsilon
-        
         if i % 5 == 0:
             episode_duration = 0
             s = env.reset()
             while True:
-                # a = select_action(model, s, -10); # print('Careful: running with all random action selection') # epsilon-greedy select action
                 a = select_action(model, s, EVAL_EPS) # epsilon-greedy select action
                 s_next, r, done, _ = env.step(a)  # execute action a_t in emulator
                 episode_duration += 1
-                    
-                memory.push((s, a, r, s_next, done))  # store transition in D
+                memory.push((s, a, r, s_next, done))  # store transition in memory
                 global_steps += 1
                 s = s_next
                 if done:
                     break
 
                 # This is NOT training, as I pass train=False
-                loss = train(model, memory, optimizer, batch_size, discount_factor, TargetComputer, train=False)
+                loss, q_val = train(model, memory, optimizer, batch_size, discount_factor, TargetComputer, train=False)
                 losses.append(loss)
+                q_values.append(q_val)
             episode_durations.append(episode_duration)
-#     plt.plot(losses[900:])
-    return episode_durations
-
-
-# In[12]:
-
-
-# Let's run it!
+            max_q_values.append(max(q_values))
+    return episode_durations, max_q_values
 
 
 def get_state_number(env):
+    # A function that can be used to easily run several environments, get the number of states to pass to the Q-function
     if isinstance(env.env.observation_space, gym.spaces.box.Box):
         nS = env.env.observation_space.shape[0]
     elif isinstance(env.env.observation_space, gym.spaces.discrete.Discrete):
@@ -326,21 +266,17 @@ def get_state_number(env):
     return nS
 
 def get_action_number(env):
-    
-
+    # A function that can be used to easily run several environments, get the number of actions to pass to the Q-function
     if isinstance(env.env.action_space, gym.spaces.box.Box):
         nA = env.env.action_space.shape[0]
     elif isinstance(env.env.action_space, gym.spaces.discrete.Discrete):
         nA = env.env.action_space.n
     else:
         print("Encountered unknown class type in action: {}. Exiting code execution".format(type(item[1])))
-        exit()    
-        
-    env.env.observation_space
+        exit()           
     return nA
 
 def run_experiment(hyperparams, _seed):
-    
     num_episodes = hyperparams['num_episodes']
     batch_size = hyperparams['batch_size']
     discount_factor = hyperparams['discount_factor']
@@ -363,108 +299,77 @@ def run_experiment(hyperparams, _seed):
 
     TargetComputer = targetComputer(target_network_steps=target_network_steps)
 
-    episode_durations = run_episodes(train, model, memory, env, num_episodes, batch_size, discount_factor, learn_rate, TargetComputer)
+    episode_durations, max_q_values = run_episodes(train, model, memory, env, num_episodes, batch_size, discount_factor, learn_rate, TargetComputer)
 
     # And see the results
-    return episode_durations
+    return episode_durations, max_q_values
 
 
-# In[16]:
 
-
-import pickle
 mountainEnv = gym.envs.make("MountainCar-v0")
-pendulumEnv = gym.envs.make("Pendulum-v0")
 acrobotEnv = gym.envs.make("Acrobot-v1")
 cartPoleEnv = gym.envs.make("CartPole-v1")
-mountainCarContEnv = gym.envs.make("MountainCarContinuous-v0")
 
-envs = [mountainEnv, acrobotEnv, cartPoleEnv]
-#mountainEnv works
-#pendulumEnv doesn't work..
-#acrobotEnv works
-#cartPoelEnv works
-#mountainCarContEnv doesn't work..
-
-# both don't work because they have a continuous action space, I think.
-
-# currently, cartPoleEnv is nicest. It divergew with useTrick = False, and converges with useTrick=True
-
+envs = [mountainEnv, acrobotEnv, cartPoleEnv] # could run for these environments
 
 hyperparams = {
-    'env':                  cartPoleEnv,  # the environment
-    'num_episodes':         100,   #100  
+    'env':                  cartPoleEnv,  # the environment is chosen to be cartpole
+    'num_episodes':         100,  
     'batch_size':           64,
-    'discount_factor':      0.8,   #0.99 completely diverges
+    'discount_factor':      0.8,   
     'learn_rate':           1e-3,
     'memory':               ReplayMemory(10000, useTrick=True), # set useTrick=False for no memory replay
     'num_hidden':           128,
-    'seed':                 10,  # This is not randomly chosen <-- from TAs
-    'target_network_steps': 1   # If set to 1, (I THINK) this means we update the target network every step, thus we actually do not use a target network
+    'seed':                 10, 
+    'target_network_steps': 1 
 }
 
-
-# We can e.g. do grid-search here.
-# for env in envs:
-#     hyperparams['env'] = env
-#     run_experiment(hyperparams)
-
-smooth_c = 10
 repeats = 10
+_seed = 0
 
 results={}
+q_results={}
 
-_seed = 0
-# TODO for all replays
 for replay in [True, False]:
-# for replay in [True]:
-    
+
     hyperparams['memory'] = ReplayMemory(10000, useTrick=replay)
     
-#     for index, steps in enumerate([1, 50, 200, 500]):
-# TODO do for all
     for steps in [1, 50, 100, 200, 500]:
-    # for steps in [1]:
-        
+    
         results['episode'] = []
+        q_results['episode'] = []
         
         hyperparams['target_network_steps'] = steps
         
         key = 'replay' if replay else 'no-replay'
         
         identifier =  '{}_steps{}_repeats{}'.format(key, steps, repeats)
+        q_identifier = 'max_q_{}_steps{}_repeats{}'.format(key, steps, repeats)
+
         print('Running {}'.format(identifier))
+        
         results[identifier] = []
+        q_results[q_identifier] = []
         
         for repeat in range(repeats):
-            _seed += 1
-            results[identifier].extend(run_experiment(hyperparams, _seed))
-
-            #TODO added :5 here, which is the number of evaluation steps we do
-            results['episode'].extend(list(range(hyperparams['num_episodes'])[::5]))
+            _seed += 1                      # changing seed
+            num_episodes, max_q_values = run_experiment(hyperparams, _seed)
+            results[identifier].extend(num_episodes)
+            q_results[q_identifier].extend(max_q_values)
+            results['episode'].extend(list(range(hyperparams['num_episodes'])[::5])) #added :5 here, which is the number of evaluation steps we do
+            q_results['episode'].extend(list(range(hyperparams['num_episodes'])[::5]))
             
 with open('results_{}.pkl'.format(int(time.time())), 'wb') as f:
     pickle.dump(results, f)
     
-# def smooth(x, N):
-# cumsum = np.cumsum(np.insert(x, 0, 0)) 
-# return (cumsum[N:] - cumsum[:-N]) / float(N)
-# plt.plot(smooth(episode_durations, smooth_c), label="{}".format(steps))
-# plt.title('Episode durations per episode {} using Experience Replay (smoothed over {} episodes)'.format('' if replay else 'not', smooth_c))
-# plt.legend()
-
-# can be used to display dataframe in ipython notebook
-from IPython.display import display, HTML
-
-test_df = pd.DataFrame(results)
-
-# e.g. display(test_df)
+results_df = pd.DataFrame(results)
+q_results_df = pd.DataFrame(q_results)
 
 # pd.melt is required to get several plots in one graph, got it from 
-# https://stackoverflow.com/questions/52308749/how-do-i-create-a-multiline-plot-using-seaborn
-# 2nd answer
+# https://stackoverflow.com/questions/52308749/how-do-i-create-a-multiline-plot-using-seaborn 2nd answer
 
+plt.figure()
 lineplot = sns.lineplot(x='episode', y='value', hue='variable', 
-             data=pd.melt(test_df, ['episode']), ci=95)
+             data=pd.melt(results_df, ['episode']), ci=95)
 fig = lineplot.get_figure()
 fig.savefig("full-fig-{}.png".format(int(time.time())))
