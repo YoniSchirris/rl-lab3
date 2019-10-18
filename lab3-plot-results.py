@@ -66,20 +66,52 @@ def run_ommitted_fig_of_non_convergence():
     fig.savefig("yoni-fig-omit-{}.png".format(int(time.time())))
 
 def run_q_values():
-    results = pickle.load(open('qresults_1571420474.pkl', 'rb'))
+    results = pickle.load(open('qresults_1571423446.pkl', 'rb'))
     test_df = pd.DataFrame(results)
-    #new_df = test_df[['episode', 'max_q_replay-replay_steps50_repeats3']].copy()
-    #new_df.columns= ['episode', 'DQN without Experience Replay, Target Network 50']
+    print(test_df.keys())
+    # new_df = test_df[['episode', 'max_q_no-replay_steps1_repeats3', 'max_q_no-replay_steps50_repeats3', 'max_q_no-replay_steps200_repeats3']].copy()
+    new_df = test_df[['episode', 'max_q_replay_steps1_repeats10', 'max_q_replay_steps50_repeats10', 'max_q_replay_steps200_repeats10', 'max_q_replay_steps500_repeats10']].copy()
+    new_df.columns= [
+        'episode',
+        'DQN with Experience Replay, Target Network 1',
+        'DQN with Experience Replay, Target Network 50',
+        'DQN with Experience Replay, Target Network 200',
+        'DQN with Experience Replay, Target Network 500',
+    ]
     a4_dims = (11.7, 8.27)
     fig, ax = plt.subplots(figsize=a4_dims)
     # plt.figure()
     lineplot = sns.lineplot(ax=ax, x='episode', y='value', hue='variable', 
-                data=pd.melt(test_df, ['episode']), ci=95)
-    lineplot.set(ylabel='Return', xlabel='Episode')
+                data=pd.melt(new_df, ['episode']), ci=95)
+    lineplot.set(ylabel='maximal Q-value', xlabel='Episode')
     handles, labels = lineplot.get_legend_handles_labels()
-    lineplot.legend(handles=handles[1:], labels=labels[1:], loc='upper left')
+    lineplot.legend(handles=handles[1:], labels=labels[1:])
     fig = lineplot.get_figure()
-    fig.savefig("q-values-fig-omit-{}.png".format(int(time.time())))
+    fig.savefig("q-values-with_exp.png".format(int(time.time())))
+
+def run_q_values_non():
+    results = pickle.load(open('qresults_1571423446.pkl', 'rb'))
+    test_df = pd.DataFrame(results)
+    print(test_df.keys())
+    new_df = test_df[['episode', 'max_q_no-replay_steps1_repeats10', 'max_q_no-replay_steps50_repeats10', 'max_q_no-replay_steps200_repeats10', 'max_q_no-replay_steps500_repeats10']].copy()
+    # new_df = test_df[['episode', 'max_q_replay_steps1_repeats3', 'max_q_replay_steps50_repeats3', 'max_q_replay_steps200_repeats3']].copy()
+    new_df.columns= [
+        'episode',
+        'DQN without Experience Replay, Target Network 1',
+        'DQN without Experience Replay, Target Network 50',
+        'DQN without Experience Replay, Target Network 200',
+        'DQN without Experience Replay, Target Network 500',
+    ]
+    a4_dims = (11.7, 8.27)
+    fig, ax = plt.subplots(figsize=a4_dims)
+    # plt.figure()
+    lineplot = sns.lineplot(ax=ax, x='episode', y='value', hue='variable', 
+                data=pd.melt(new_df, ['episode']), ci=95)
+    lineplot.set(ylabel='maximal Q-value', xlabel='Episode')
+    handles, labels = lineplot.get_legend_handles_labels()
+    lineplot.legend(handles=handles[1:], labels=labels[1:])
+    fig = lineplot.get_figure()
+    fig.savefig("q-values-without_exp.png".format(int(time.time())))
 
 
 # run_fig_1()
@@ -87,3 +119,4 @@ def run_q_values():
 # run_fig_3()
 # run_ommitted_fig_of_non_convergence()
 run_q_values()
+run_q_values_non()
