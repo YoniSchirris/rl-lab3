@@ -23,7 +23,7 @@ EPS = float(np.finfo(np.float32).eps)
 assert sys.version_info[:3] >= (3, 6, 0), "Make sure you have Python 3.6 installed!"
 
 import gym
-env = gym.envs.make("CartPole-v0")
+env = gym.envs.make("CartPole-v1")
 
 class QNetwork(nn.Module):
     """
@@ -249,6 +249,7 @@ def run_episodes(train, model, memory, env, num_episodes, batch_size, discount_f
                 loss, q_val = train(model, memory, optimizer, batch_size, discount_factor, TargetComputer, train=False)
                 losses.append(loss)
                 q_values.append(q_val)
+            print(episode_duration)
             episode_durations.append(episode_duration)
             max_q_values.append(max(q_values))
     return episode_durations, max_q_values
@@ -330,11 +331,12 @@ _seed = 0
 results={}
 q_results={}
 
-for replay in [True, False]:
+for replay in [True]:
 
     hyperparams['memory'] = ReplayMemory(10000, useTrick=replay)
     
-    for steps in [1, 50, 100, 200, 500]:
+    # for steps in [1, 50, 100, 200, 500]:
+    for steps in [1]:
     
         results['episode'] = []
         q_results['episode'] = []
