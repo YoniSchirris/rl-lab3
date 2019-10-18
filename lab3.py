@@ -206,7 +206,7 @@ class targetComputer():
 
         return (reward + discount_factor * max_Q_prime).unsqueeze(1)
 
-def train(model, memory, optimizer, batch_size, discount_factor, TargetComputer):
+def train(model, memory, optimizer, batch_size, discount_factor, TargetComputer, train=True):
     # DO NOT MODIFY THIS FUNCTION
     
     # don't learn without some decent experience
@@ -237,9 +237,10 @@ def train(model, memory, optimizer, batch_size, discount_factor, TargetComputer)
     loss = F.smooth_l1_loss(q_val, target)
 
     # backpropagation of loss to t Network (PyTorch magic)
-    optimizer.zero_grad()
-    loss.backward()
-    optimizer.step()
+    if train:
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
     
     return loss.item()  # Returns a Python scalar, and releases history (similar to .detach())
 
@@ -250,6 +251,8 @@ def train(model, memory, optimizer, batch_size, discount_factor, TargetComputer)
 def run_episodes(train, model, memory, env, num_episodes, batch_size, discount_factor, learn_rate, TargetComputer):
     
     optimizer = optim.Adam(model.parameters(), learn_rate)
+
+    EVAL_EPS = 0.05
     
     global_steps = 0  # Count the steps (do not reset at episode start, to compute epsilon)
     episode_durations = []  #
@@ -274,11 +277,35 @@ def run_episodes(train, model, memory, env, num_episodes, batch_size, discount_f
             s = s_next
             if done:
                 break
+
+            # this is actually training as I do not pass it "train=False"
             loss = train(model, memory, optimizer, batch_size, discount_factor, TargetComputer)
-            losses.append(loss)
-        episode_durations.append(episode_duration)
+
+            # only tracking losses from the evaluation
+            # losses.append(loss)
+
+        # add  evaluation every 5th run with same epsilon
+        
+        if i % 5 == 0:
+            episode_duration = 0
+            s = env.reset()
+            while True:
+                # a = select_action(model, s, -10); # print('Careful: running with all random action selection') # epsilon-greedy select action
+                a = select_action(model, s, EVAL_EPS) # epsilon-greedy select action
+                s_next, r, done, _ = env.step(a)  # execute action a_t in emulator
+                episode_duration += 1
+                    
+                memory.push((s, a, r, s_next, done))  # store transition in D
+                global_steps += 1
+                s = s_next
+                if done:
+                    break
+
+                # This is NOT training, as I pass train=False
+                loss = train(model, memory, optimizer, batch_size, discount_factor, TargetComputer, train=False)
+                losses.append(loss)
+            episode_durations.append(episode_duration)
 #     plt.plot(losses[900:])
-    
     return episode_durations
 
 
@@ -388,12 +415,16 @@ repeats = 10
 results={}
 
 _seed = 0
+# TODO for all replays
 for replay in [True, False]:
+# for replay in [True]:
     
     hyperparams['memory'] = ReplayMemory(10000, useTrick=replay)
     
 #     for index, steps in enumerate([1, 50, 200, 500]):
+# TODO do for all
     for steps in [1, 50, 100, 200, 500]:
+    # for steps in [1]:
         
         results['episode'] = []
         
@@ -408,9 +439,11 @@ for replay in [True, False]:
         for repeat in range(repeats):
             _seed += 1
             results[identifier].extend(run_experiment(hyperparams, _seed))
-            results['episode'].extend(list(range(hyperparams['num_episodes'])))
+
+            #TODO added :5 here, which is the number of evaluation steps we do
+            results['episode'].extend(list(range(hyperparams['num_episodes'])[::5]))
             
-with open('results_tonight.pkl', 'wb') as f:
+with open('results_{}.pkl'.format(int(time.time())), 'wb') as f:
     pickle.dump(results, f)
     
 # def smooth(x, N):
@@ -431,5 +464,7 @@ test_df = pd.DataFrame(results)
 # https://stackoverflow.com/questions/52308749/how-do-i-create-a-multiline-plot-using-seaborn
 # 2nd answer
 
-sns.lineplot(x='episode', y='value', hue='variable', 
+lineplot = sns.lineplot(x='episode', y='value', hue='variable', 
              data=pd.melt(test_df, ['episode']), ci=95)
+fig = lineplot.get_figure()
+fig.savefig("full-fig-{}.png".format(int(time.time())))
