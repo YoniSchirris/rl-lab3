@@ -249,7 +249,6 @@ def run_episodes(train, model, memory, env, num_episodes, batch_size, discount_f
                 loss, q_val = train(model, memory, optimizer, batch_size, discount_factor, TargetComputer, train=False)
                 losses.append(loss)
                 q_values.append(q_val)
-            print(episode_duration)
             episode_durations.append(episode_duration)
             max_q_values.append(max(q_values))
     return episode_durations, max_q_values

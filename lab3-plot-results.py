@@ -7,8 +7,6 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 
-
-
 def run_fig_1():
     results = pickle.load(open('results_for_figs.pkl', 'rb'))
     test_df = pd.DataFrame(results)
