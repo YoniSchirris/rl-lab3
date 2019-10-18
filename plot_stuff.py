@@ -53,4 +53,18 @@ def run_fig_3():
     fig = lineplot.get_figure()
     fig.savefig("full-fig-{}.png".format(int(time.time())))
 
-run_fig_3()
+def run_ommitted_fig_of_non_convergence():
+    results = pickle.load(open('results_for_dqn_wo_replay_not_converging_over_500_episodes.pkl', 'rb'))
+    test_df = pd.DataFrame(results)
+    new_df = test_df[['episode', 'no-replay_steps50_repeats10']].copy()
+    new_df.columns= ['episode', 'DQN without Experience Replay, Target Network 50']
+    plt.figure()
+    lineplot = sns.lineplot(x='episode', y='value', hue='variable', 
+                data=pd.melt(new_df, ['episode']), ci=95)
+    lineplot.set(ylabel='Reward', xlabel='Episode')
+    handles, labels = lineplot.get_legend_handles_labels()
+    lineplot.legend(handles=handles[1:], labels=labels[1:], loc='upper left')
+    fig = lineplot.get_figure()
+    fig.savefig("full-fig-{}.png".format(int(time.time())))
+
+run_ommitted_fig_of_non_convergence()
